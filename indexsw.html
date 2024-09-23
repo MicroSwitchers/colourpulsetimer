@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stopwatch Timer</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+            transition: background-color 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        #stopwatch-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            z-index: 1;
+        }
+        #stopwatch {
+            font-weight: 300;
+            color: #333;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            user-select: none;
+            cursor: pointer;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.3s ease, color 0.3s ease;
+        }
+        #stopwatch .time {
+            font-size: 4rem;
+            line-height: 1;
+        }
+        #stopwatch .decimals {
+            font-size: 2.5rem;
+        }
+        #progress-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease;
+            z-index: 2;
+        }
+        .control-button {
+            position: absolute;
+            top: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            z-index: 3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+        .control-button:hover {
+            background-color: rgba(255, 255, 255, 1);
+        }
+        #sound-toggle {
+            right: 60px;
+        }
+        #reset-button {
+            right: 10px;
+        }
+        .control-button svg {
+            width: 24px;
+            height: 24px;
+            fill: #333;
+        }
+        @keyframes smoothPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        @keyframes subtleColorChange {
+            0%, 100% { color: #333; }
+            50% { color: #6a5acd; }
+        }
+        .color-change {
+            animation: subtleColorChange 2s ease-in-out infinite;
+        }
+        .paused {
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div id="stopwatch-container">
+        <div id="stopwatch">
+            <div class="time">00:00</div>
+            <div class="decimals">00</div>
+        </div>
+        <svg id="progress-line" viewBox="0 0 300 300">
+            <circle cx="150" cy="150" r="147" fill="none" stroke="#6a5acd" stroke-width="6" stroke-linecap="round" stroke-dasharray="923.63" stroke-dashoffset="923.63" transform="rotate(-90 150 150)"/>
+        </svg>
+    </div>
+    <button id="sound-toggle" class="control-button" title="Toggle sound">
+        <svg viewBox="0 0 24 24" class="sound-off">
+            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+        </svg>
+        <svg viewBox="0 0 24 24" class="sound-on" style="display: none;">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+    </button>
+    <button id="reset-button" class="control-button" title="Reset stopwatch">
+        <svg viewBox="0 0 24 24">
+            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+        </svg>
+    </button>
+
+    <script>
+        const stopwatch = document.getElementById('stopwatch');
+        const timeDisplay = stopwatch.querySelector('.time');
+        const decimalsDisplay = stopwatch.querySelector('.decimals');
+        const progressLine = document.querySelector('#progress-line circle');
+        const soundToggle = document.getElementById('sound-toggle');
+        const resetButton = document.getElementById('reset-button');
+        const soundOffIcon = soundToggle.querySelector('.sound-off');
+        const soundOnIcon = soundToggle.querySelector('.sound-on');
+        let startTime;
+        let elapsedTime = 0;
+        let timerInterval;
+        let isRunning = false;
+        let isPaused = false;
+        let lastSecond = -1;
+        let isSoundOn = false;
+
+        let audioContext;
+        let tickOscillator;
+
+        const TICK_FREQUENCY = 1000; // 1000 Hz for all ticks
+        const CIRCUMFERENCE = 2 * Math.PI * 147; // 2πr, where r is 147 (the radius of our SVG circle)
+
+        let wakeLock = null;
+
+        async function requestWakeLock() {
+          try {
+            wakeLock = await navigator.wakeLock.request('screen');
+            console.log('Wake Lock is active');
+          } catch (err) {
+            console.error(`${err.name}, ${err.message}`);
+          }
+        }
+
+        function releaseWakeLock() {
+          if (wakeLock !== null) {
+            wakeLock.release()
+              .then(() => {
+                wakeLock = null;
+                console.log('Wake Lock released');
+              });
+          }
+        }
+
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        function playTick() {
+            if (!isSoundOn) return;
+            if (!audioContext) initAudio();
+
+            tickOscillator = audioContext.createOscillator();
+            tickOscillator.type = 'sine';
+            tickOscillator.frequency.setValueAtTime(TICK_FREQUENCY, audioContext.currentTime);
+
+            const gainNode = audioContext.createGain();
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.01);
+            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.05);
+
+            tickOscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            tickOscillator.start();
+            tickOscillator.stop(audioContext.currentTime + 0.05);
+        }
+
+        function formatTime(ms) {
+            const date = new Date(ms);
+            const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+            const seconds = date.getUTCSeconds().toString().padStart(2, '0');
+            const tenths = Math.floor((ms % 1000) / 10).toString().padStart(2, '0');
+            return { time: `${minutes}:${seconds}`, decimals: tenths };
+        }
+
+        function updateDisplay() {
+            const { time, decimals } = formatTime(elapsedTime);
+            timeDisplay.textContent = time;
+            decimalsDisplay.textContent = decimals;
+            
+            const progress = (elapsedTime % 60000) / 60000;
+            const dashoffset = CIRCUMFERENCE * (1 - progress);
+            progressLine.style.strokeDashoffset = dashoffset;
+
+            const currentSecond = Math.floor(elapsedTime / 1000);
+            if (currentSecond !== lastSecond) {
+                lastSecond = currentSecond;
+                playTick();
+                pulseEffect();
+            }
+        }
+
+        function pulseEffect() {
+            stopwatch.style.animation = 'none';
+            document.getElementById('progress-line').style.animation = 'none';
+            void stopwatch.offsetWidth; // Trigger reflow
+            void document.getElementById('progress-line').offsetWidth; // Trigger reflow
+            stopwatch.style.animation = 'smoothPulse 0.3s ease';
+            document.getElementById('progress-line').style.animation = 'smoothPulse 0.3s ease';
+        }
+
+        function togglePauseResume() {
+            if (!isRunning && !isPaused) {
+                // Start the stopwatch
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(updateTimer, 16);
+                isRunning = true;
+                stopwatch.classList.add('color-change');
+                requestWakeLock();
+            } else if (isRunning && !isPaused) {
+                // Pause the stopwatch
+                clearInterval(timerInterval);
+                isPaused = true;
+                stopwatch.classList.add('paused');
+                stopwatch.classList.remove('color-change');
+                releaseWakeLock();
+            } else if (isPaused) {
+                // Resume the stopwatch
+                startTime = Date.now() - elapsedTime;
+                timerInterval = setInterval(updateTimer, 16);
+                isPaused = false;
+                stopwatch.classList.remove('paused');
+                stopwatch.classList.add('color-change');
+                requestWakeLock();
+            }
+        }
+
+        function updateTimer() {
+            elapsedTime = Date.now() - startTime;
+            updateDisplay();
+            updateBackgroundColor();
+        }
+
+        function getColor(seconds) {
+            if (seconds % 60 === 0 && seconds !== 0) {
+                return 'rgba(255, 100, 100, 0.7)';
+            } else if (seconds % 30 === 0) {
+                return 'rgba(255, 165, 0, 0.7)';
+            } else if (seconds % 15 === 0) {
+                return 'rgba(100, 255, 100, 0.7)';
+            } else if (seconds % 10 === 0) {
+                return 'rgba(100, 200, 255, 0.7)';
+            } else {
+                return '#f5f5f5';
+            }
+        }
+
+        function updateBackgroundColor() {
+            const seconds = Math.floor(elapsedTime / 1000);
+            const color = getColor(seconds);
+            document.body.style.backgroundColor = color;
+        }
+
+        function toggleSound() {
+            isSoundOn = !isSoundOn;
+            soundOffIcon.style.display = isSoundOn ? 'none' : 'block';
+            soundOnIcon.style.display = isSoundOn ? 'block' : 'none';
+            soundToggle.title = isSoundOn ? 'Sound on' : 'Sound off';
+        }
+
+        function resetStopwatch() {
+            clearInterval(timerInterval);
+            elapsedTime = 0;
+            isRunning = false;
+            isPaused = false;
+            lastSecond = -1;
+            stopwatch.classList.remove('color-change', 'paused');
+            updateDisplay();
+            document.body.style.backgroundColor = '#f5f5f5';
+            releaseWakeLock();
+        }
+
+        document.body.addEventListener('click', (e) => {
+            if (e.target !== soundToggle && !soundToggle.contains(e.target) &&
+                e.target !== resetButton && !resetButton.contains(e.target)) {
+                togglePauseResume();
+            }
+        });
+        soundToggle.addEventListener('click', toggleSound);
+        resetButton.addEventListener('click', resetStopwatch);
+
+        progressLine.style.strokeDasharray = CIRCUMFERENCE;
+        updateDisplay();
+    </script>
+</body>
+</html>
